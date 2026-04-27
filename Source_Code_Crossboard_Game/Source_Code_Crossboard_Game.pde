@@ -1,19 +1,63 @@
-int rows = 6;
-int cols = 6;
+int rows = 6, cols = 6;
 int x = 0, y = 0;
-Strikers player1;
-Strikers player2;
+int NSERP = 3 , NSECP = 2;             //Number of Strickers for Each row for a Player and Each Column for Player
+Strikers [][]player1;
+Strikers [][]player2;
+color Red =color(255, 0, 0);
+color Blue =  color(0, 0, 255);
+
 
 void setup(){
   
   size(600,600);
-  player1 = new Strikers();
-  player2 = new Strikers();
+  player1 = new Strikers[NSECP][NSERP];
+  player2 = new Strikers[NSECP][NSERP];
+  
+  for(int r=0; r < NSECP; r++){
+    for (int c = 0; c < NSERP; c++){
+      player1[r][c] = new Strikers (x,y,Red);
+      x = x + 200;
+    }
+    y = y + 100;
+    x = x- 500;
+      
 }
+x = 0;
+y = 400;
+
+  for(int r=0; r < NSECP; r++){
+    for (int c = 0; c < NSERP; c++){
+      player2[r][c] = new Strikers (x,y,Blue);
+      x = x + 200;
+    }
+    y = y + 100;
+    x = x- 500;
+      
+}
+  x=0;
+  y=0;
+}
+
 
 void draw(){
   Board();
-  Strikers.display();
+  for(Strikers[] row :player1){
+    for(Strikers b: row){
+      if(b!= null){
+      b.display();
+      }
+  }
+  //player1.display();
+  //player2.display();
+  
+}
+for(Strikers[] row :player2){
+    for(Strikers b: row){
+      if(b!= null){
+      b.display();
+      }
+  }
+}
 }
 
 void Board() {
@@ -32,24 +76,30 @@ void Board() {
     }
       y = y + 100;
       x = 0;
-  } 
+  }
 }
+
 
 class Strikers{
   
   //fields 
-  color Red =color(255, 0, 0);
-  color Blue =  color(0, 0, 255);
+  color col;
+  int xPos;
+  int yPos;
   
   //constructor
   
-  Strikers(){
-     
+  Strikers(int x,int y, color paint){
+    col = paint;
+    xPos = x;
+    yPos = y;
   }
   
   void display(){
-    
-    cricle(x,y,40);
+    fill(col);
+    ellipse(xPos+50,yPos+50,80,80);
   }
-
+  
+  //void check(){
+   //mouseClicked(){ 
 }
