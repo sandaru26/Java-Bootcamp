@@ -1,0 +1,133 @@
+Here's a full explanation of every part of the code, section by section:
+
+📦 Global Variables
+javaint rows = 6, cols = 6;
+int CELL = 100;
+rows and cols define the board size (6×6). CELL = 100 means each square is 100×100 pixels since the window is 600px wide (600 ÷ 6 = 100).
+javaStrikers[][] grid = new Strikers[rows][cols];
+This is the most important variable. It's a 2D array that acts as a map of the board — every cell either holds a Strikers object or null (empty). This is how the game knows what's where.
+javaint currentTurn = 1;
+Strikers selectedStriker = null;
+ArrayList<int[]> validMoves = new ArrayList<int[]>();
+currentTurn tracks whose turn it is (1=Red, 2=Blue). selectedStriker remembers which piece the player clicked. validMoves stores a list of [row, col] destinations that the selected piece is allowed to go.
+
+⚙️ setup()
+javafor (int r = 0; r < NSERP; r++) {
+  for (int c = 0; c < NSECP; c++) {
+    int gc = r % 2 == 0 ? c * 2 : c * 2 + 1;
+    player1[r][c] = new Strikers(gc, r, Red, 1);
+    grid[r][gc] = player1[r][c];
+  }
+}
+This replaces your original x/y pixel positioning. Instead of calculating pixel coordinates manually, each striker is placed using grid coordinates (gc = grid column, r = grid row). The formula c * 2 or c * 2 + 1 puts pieces only on dark squares (where row + col is even). The same striker object is stored in both player1[][] (for ownership tracking) and grid[][] (for board lookup).
+
+🖥️ draw()
+javavoid draw() {
+  board.display();          // draws the 6x6 grid squares
+  drawValidMoveSpots();     // draws green dots on allowed cells
+  drawAllStrikers();        // draws all pieces
+  drawStatusBar();          // draws the bottom info bar
+}
+These four calls happen every frame. The order matters — board is drawn first so pieces appear on top of it, and the status bar is drawn last so it overlays everything.
+
+🖱️ mousePressed()
+javaint gc = mouseX / CELL;
+int gr = mouseY / CELL;
+This converts the mouse pixel position into a grid cell. For example, if you click at pixel x=250, then 250 / 100 = 2, so you clicked column 2.
+javaif (clicked != null && clicked.owner == currentTurn) {
+    selectedStriker = clicked;
+    validMoves = getValidMoves(clicked);
+}
+If you click your own piece, it becomes selected and valid moves are calculated immediately.
+javafor (int[] mv : validMoves) {
+  if (mv[0] == gr && mv[1] == gc) {
+    executeMove(selectedStriker, gr, gc);
+  }
+}
+If you click a destination that matches one of the valid move cells, the move is executed. Otherwise the click is ignored and the piece deselects.
+
+🧠 getValidMoves() — The Heart of Movement
+This function takes a striker and returns a list of cells it can legally move to.
+Step 1 — Direction:
+javaif      (s.isKing)     dirRows = new int[]{-1, 1};  // both ways
+else if (s.owner == 1) dirRows = new int[]{ 1};      // Red goes down
+else                   dirRows = new int[]{-1};       // Blue goes up
+Regular pieces can only move forward. Kings can move in both row directions.
+Step 2 — Check each diagonal:
+javafor (int dr : dirRows) {
+  for (int dc : new int[]{-1, 1}) {   // left diagonal, right diagonal
+    int nr = s.gridRow + dr;
+    int nc = s.gridCol + dc;
+dr is the row direction (-1 or +1), dc is the column direction (-1 or +1). Together they make a diagonal step.
+Step 3 — The 7 conditions:
+javaif (!inBounds(nr, nc)) continue;          // Condition 2: inside board?
+if ((nr + nc) % 2 != 0) continue;        // Condition 3: dark square?
+
+if (grid[nr][nc] == null) {
+  steps.add(new int[]{nr, nc});           // Condition 4: empty = step
+
+} else if (grid[nr][nc].owner != s.owner) {
+  int jr = s.gridRow + dr * 2;           // Condition 5: opponent = jump
+  int jc = s.gridCol + dc * 2;
+  if (inBounds(jr, jc) && grid[jr][jc] == null)
+    jumps.add(new int[]{jr, jc});         // Condition 6: landing empty
+}
+Step 4 — Jump priority:
+javaif (jumps.size() > 0) return jumps;      // Condition 7: jumps beat steps
+return steps;
+If even one jump is available, the player must take a jump — steps are completely ignored.
+
+⚡ executeMove()
+javagrid[fromRow][fromCol] = null;
+grid[toRow][toCol]     = s;
+s.moveTo(toCol, toRow);
+The striker is removed from its old cell in the grid and placed in the new cell. moveTo() updates the striker's own internal coordinates so it draws in the right place.
+javaboolean jumped = abs(toRow - fromRow) == 2;
+if (jumped) {
+  int mr = (fromRow + toRow) / 2;
+  int mc = (fromCol + toCol) / 2;
+  removeStriker(grid[mr][mc]);
+  grid[mr][mc] = null;
+If the piece moved 2 rows, it was a jump. The captured piece sits at the midpoint between the from and to positions — (from + to) / 2 — so that's where we remove it from.
+javaArrayList<int[]> furtherJumps = getJumpsOnly(s);
+if (furtherJumps.size() > 0) {
+  selectedStriker = s;
+  validMoves = furtherJumps;
+  return;                   // same player goes again!
+}
+After a capture, we immediately check if the same piece can jump again. If yes, the turn does NOT switch — the same player must keep jumping.
+javaif (s.owner == 1 && toRow == rows - 1) s.isKing = true;
+if (s.owner == 2 && toRow == 0)        s.isKing = true;
+King promotion — Red reaching the last row (row 5) or Blue reaching the first row (row 0) becomes a King, which can then move both directions.
+
+🏛️ Your Original Classes (modified)
+Board and Square — unchanged in behavior, just uses 600.0 instead of width for height calculation so the board stays exactly 600px even with the 40px status bar added.
+Strikers class — key additions:
+javaint gridCol, gridRow;   // where the piece is on the grid
+int owner;              // which player owns it
+boolean isKing;         // has it been promoted?
+
+void moveTo(int gc, int gr) {
+  gridCol = gc;
+  gridRow = gr;
+}
+The display() method now calculates pixel position from the grid coordinates at draw time:
+javafloat cx = gridCol * CELL + 50;  // center x of the cell
+float cy = gridRow * CELL + 50;  // center y of the cell
+This means you never have to manually calculate pixels — just update gridCol and gridRow and the piece draws itself in the right place automatically.
+
+🗺️ How Everything Connects
+mousePressed()
+     │
+     ▼
+getValidMoves()  ←── reads grid[][]
+     │
+     ▼
+executeMove()    ──→ updates grid[][]
+     │                    │
+     ▼                    ▼
+switchTurn()         removeStriker()
+     │
+     ▼
+checkWin()
+The grid[][] array is the single source of truth — every function reads from it and writes to it, so the board state is always consistent.
