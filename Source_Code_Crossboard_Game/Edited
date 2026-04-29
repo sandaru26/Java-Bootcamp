@@ -1,0 +1,294 @@
+Game game;
+
+// ---------------- MAIN ----------------
+void setup() {
+  size(600, 640);
+  noStroke();
+  game = new Game();
+  game.setupGame();
+}
+
+void draw() {
+  background(255);
+  game.drawGame();
+}
+
+void mousePressed() {
+  game.handleClick(mouseX, mouseY);
+}
+
+void keyPressed() {
+  if (key == 'r' || key == 'R') game.setupGame();
+}
+
+// ============================================
+// 🎮 GAME CLASS (MAIN CONTROLLER)
+// ============================================
+class Game {
+  int rows = 6, cols = 6, CELL = 100;
+
+  Board board;
+  Strikers[][] grid;
+
+  Strikers[][] player1, player2;
+
+  Strikers selected;
+  ArrayList<int[]> validMoves;
+
+  int currentTurn;
+  String message;
+
+  void setupGame() {
+    board = new Board(rows, cols);
+    grid = new Strikers[rows][cols];
+
+    player1 = new Strikers[2][3];
+    player2 = new Strikers[2][3];
+
+    validMoves = new ArrayList<int[]>();
+    selected = null;
+    currentTurn = 1;
+    message = "Red's Turn";
+
+    // place pieces
+    for (int r = 0; r < 2; r++)
+      for (int c = 0; c < 3; c++) {
+        int gc = (r % 2 == 0 ? c * 2 : c * 2 + 1);
+        player1[r][c] = new Strikers(gc, r, color(252, 0, 0), 1);
+        grid[r][gc] = player1[r][c];
+
+        int gr = rows - 2 + r;
+        gc = (gr % 2 == 0 ? c * 2 : c * 2 + 1);
+        player2[r][c] = new Strikers(gc, gr, color(0, 124, 252), 2);
+        grid[gr][gc] = player2[r][c];
+      }
+  }
+
+  void drawGame() {
+    board.display();
+
+    // draw valid moves
+    fill(0, 200, 80, 160);
+    for (int[] m : validMoves)
+      ellipse(m[1] * CELL + 50, m[0] * CELL + 50, 40, 40);
+
+    // draw pieces
+    for (Strikers[] p : player1)
+      for (Strikers s : p)
+        if (s != null) s.display();
+
+    for (Strikers[] p : player2)
+      for (Strikers s : p)
+        if (s != null) s.display();
+
+    // status bar
+    fill(30);
+    rect(0, 600, 600, 40);
+
+    fill(currentTurn == 1 ? color(252, 0, 0) : color(0, 124, 252));
+    ellipse(24, 620, 20, 20);
+
+    fill(240);
+    textAlign(CENTER, CENTER);
+    textSize(17);
+    text(message, 300, 620);
+  }
+
+  void handleClick(int mx, int my) {
+    if (my >= 600) return;
+
+    int gc = mx / CELL, gr = my / CELL;
+    if (!board.inBounds(gr, gc)) return;
+
+    Strikers clicked = grid[gr][gc];
+
+    // select
+    if (clicked != null && clicked.owner == currentTurn) {
+      selected = clicked;
+      validMoves = selected.getValidMoves(grid, board);
+      return;
+    }
+
+    // move
+    if (selected != null)
+      for (int[] m : validMoves)
+        if (m[0] == gr && m[1] == gc) {
+          executeMove(selected, gr, gc);
+          return;
+        }
+
+    selected = null;
+    validMoves.clear();
+  }
+
+  void executeMove(Strikers s, int tr, int tc) {
+    int fr = s.gridRow, fc = s.gridCol;
+
+    grid[fr][fc] = null;
+    grid[tr][tc] = s;
+    s.moveTo(tc, tr);
+
+    // capture
+    if (abs(tr - fr) == 2) {
+      int mr = (fr + tr) / 2, mc = (fc + tc) / 2;
+      removeStriker(grid[mr][mc]);
+      grid[mr][mc] = null;
+
+      ArrayList<int[]> more = s.getJumpsOnly(grid, board);
+      if (more.size() > 0) {
+        selected = s;
+        validMoves = more;
+        message = (currentTurn == 1 ? "Red" : "Blue") + " — keep jumping!";
+        return;
+      }
+    }
+
+    // king
+    if ((s.owner == 1 && tr == rows - 1) || (s.owner == 2 && tr == 0))
+      s.isKing = true;
+
+    selected = null;
+    validMoves.clear();
+
+    if (!checkWin()) switchTurn();
+  }
+
+  void removeStriker(Strikers s) {
+    for (int r = 0; r < 2; r++)
+      for (int c = 0; c < 3; c++) {
+        if (player1[r][c] == s) player1[r][c] = null;
+        if (player2[r][c] == s) player2[r][c] = null;
+      }
+  }
+
+  void switchTurn() {
+    currentTurn = 3 - currentTurn;
+    message = currentTurn == 1 ? "Red's Turn" : "Blue's Turn";
+  }
+
+  boolean checkWin() {
+    int r1 = 0, r2 = 0;
+    for (int r = 0; r < rows; r++)
+      for (int c = 0; c < cols; c++)
+        if (grid[r][c] != null)
+          if (grid[r][c].owner == 1) r1++; else r2++;
+
+    if (r1 == 0) { message = "Blue Wins! Press R"; return true; }
+    if (r2 == 0) { message = "Red Wins! Press R"; return true; }
+    return false;
+  }
+}
+
+// ============================================
+// 🟫 BOARD (Enhanced)
+// ============================================
+class Board {
+  int rows, cols;
+  Square[][] squares;
+
+  Board(int r, int c) {
+    rows = r; cols = c;
+    squares = new Square[r][c];
+    float w = 600.0 / c, h = 600.0 / r;
+
+    for (int i = 0; i < r; i++)
+      for (int j = 0; j < c; j++) {
+        color col = ((i + j) % 2 == 0) ? color(0) : color(206,168,148);
+        squares[i][j] = new Square(j*w, i*h, w, h, col);
+      }
+  }
+
+  void display() {
+    for (Square[] row : squares)
+      for (Square s : row)
+        s.render();
+  }
+
+  boolean inBounds(int r, int c) {
+    return r >= 0 && r < rows && c >= 0 && c < cols;
+  }
+
+  boolean isDark(int r, int c) {
+    return (r + c) % 2 == 0;
+  }
+}
+
+// ============================================
+// ⬛ SQUARE (UNCHANGED)
+// ============================================
+class Square {
+  float x,y,w,h; color c;
+
+  Square(float x_, float y_, float w_, float h_, color c_) {
+    x=x_; y=y_; w=w_; h=h_; c=c_;
+  }
+
+  void render() {
+    fill(c); noStroke();
+    rect(x,y,w,h);
+  }
+}
+
+// ============================================
+// 🔴 STRIKERS (NOW SMART)
+// ============================================
+class Strikers {
+  color col;
+  int gridCol, gridRow, owner;
+  boolean isKing = false;
+
+  Strikers(int gc, int gr, color paint, int own) {
+    col=paint; gridCol=gc; gridRow=gr; owner=own;
+  }
+
+  void moveTo(int gc, int gr) {
+    gridCol=gc; gridRow=gr;
+  }
+
+  ArrayList<int[]> getValidMoves(Strikers[][] grid, Board b) {
+    ArrayList<int[]> steps=new ArrayList<>(), jumps=new ArrayList<>();
+    int[] drs=isKing?new int[]{-1,1}:(owner==1?new int[]{1}:new int[]{-1});
+
+    for(int dr:drs) for(int dc:new int[]{-1,1}){
+      int nr=gridRow+dr, nc=gridCol+dc;
+      if(!b.inBounds(nr,nc)||!b.isDark(nr,nc))continue;
+
+      if(grid[nr][nc]==null) steps.add(new int[]{nr,nc});
+      else if(grid[nr][nc].owner!=owner){
+        int jr=gridRow+2*dr, jc=gridCol+2*dc;
+        if(b.inBounds(jr,jc)&&grid[jr][jc]==null)
+          jumps.add(new int[]{jr,jc});
+      }
+    }
+    return jumps.size()>0?jumps:steps;
+  }
+
+  ArrayList<int[]> getJumpsOnly(Strikers[][] grid, Board b) {
+    ArrayList<int[]> j=new ArrayList<>();
+    int[] drs=isKing?new int[]{-1,1}:(owner==1?new int[]{1}:new int[]{-1});
+
+    for(int dr:drs) for(int dc:new int[]{-1,1}){
+      int nr=gridRow+dr, nc=gridCol+dc;
+      if(b.inBounds(nr,nc)&&grid[nr][nc]!=null&&grid[nr][nc].owner!=owner){
+        int jr=gridRow+2*dr, jc=gridCol+2*dc;
+        if(b.inBounds(jr,jc)&&grid[jr][jc]==null)
+          j.add(new int[]{jr,jc});
+      }
+    }
+    return j;
+  }
+
+  void display() {
+    float cx=gridCol*100+50, cy=gridRow*100+50;
+
+    fill(0,0,0,70); ellipse(cx+3,cy+4,80,80);
+    fill(col); ellipse(cx,cy,80,80);
+
+    if(isKing){
+      fill(255,215,0);
+      textAlign(CENTER,CENTER);
+      textSize(24);
+      text("K",cx,cy);
+    }
+  }
+}
