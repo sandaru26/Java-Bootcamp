@@ -1,0 +1,7 @@
+REFERENCE
+
+* Processing Website Reference Section Used for Create Arrays, array Lists and Conditions .
+
+* For Movement Conditions adding we used claude ai.
+
+
