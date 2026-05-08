@@ -286,7 +286,7 @@ void keyPressed() {
 }
 
 // -----------------------------------------------
-//  YOUR ORIGINAL CLASSES (gridRow/gridCol added)
+//  CLASSES
 // -----------------------------------------------
 
 class Board {
